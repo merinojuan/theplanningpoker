@@ -1,0 +1,9 @@
+.font-title {
+  font-family: "Sedgwick Ave Display", monospace, cursive;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.btn-fs-1 {
+  font-size: 1rem !important;
+}
