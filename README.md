@@ -1,5 +1,7 @@
 # theplanningpoker
 
+See [demo](https://merinojuan.github.io/theplanningpoker/) page.
+
 ## Project Setup
 
 ```sh
