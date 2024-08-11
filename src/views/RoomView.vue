@@ -158,7 +158,7 @@ function getEstimateVariant(status: string, estimate: string) {
           <div v-if="!roomError && !participantsError">
             <div v-if="room" class="position-relative">
               <header
-                class="position-sticky top-0 mt-n4 pt-4 bg-background"
+                class="position-sticky top-0 mt-n4 mx-n1 pt-4 bg-background"
                 style="z-index: 1;"
               ><!-- backdrop-filter: blur(12px); -->
                 <v-card><!-- style="opacity: .9;" -->
@@ -192,7 +192,7 @@ function getEstimateVariant(status: string, estimate: string) {
                             </v-btn>
                           </v-badge>
                           <div class="ml-4">
-                            <v-chip v-for="(participant) in value" :key="participant.id">
+                            <v-chip v-for="(participant) in value" :key="participant.id" class="ma-1">
                               {{ participant.name }}
                             </v-chip>
                           </div>
