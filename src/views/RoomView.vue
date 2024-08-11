@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useCollection, useDocument } from 'vuefire'
-import { collection, doc, setDoc, updateDoc, writeBatch } from 'firebase/firestore'
+import { collection, doc, setDoc, updateDoc, writeBatch, deleteDoc } from 'firebase/firestore'
 import { db } from '@/firebase'
 import { useRoute } from 'vue-router'
 
@@ -31,9 +31,39 @@ let sortedParticipants = computed(() => {
   if (!room.value || !participants.value) return null
 
   return room.value.status === 'hide'
-    ? participants.value.slice().sort((a, b) => a.name.localeCompare(b.name))
-    : participants.value.slice().sort((a, b) => getEstimateOrderValue(a.estimate) - getEstimateOrderValue(b.estimate))
+    ? orderParticipantByName(participants.value.slice())
+    : orderParticipantByEstimate(participants.value.slice())
 })
+
+let groupedParticipants = computed(() => {
+  if (!room.value || !participants.value) return null
+  if (room.value.status === 'hide') return null
+
+  let orderedParticipants = orderParticipantByName(participants.value.slice())
+  orderedParticipants = orderParticipantByEstimate(orderedParticipants.slice())
+
+  const estimates: string[] = orderedParticipants.reduce((acc, p) => {
+    if (!p.estimate) {
+      if (!acc.includes('null')) acc.push('null')
+    } else {
+      if (!acc.includes(p.estimate)) acc.push(p.estimate)
+    }
+    return acc
+  }, [])
+
+  const groupedParticipants = {}
+  estimates.forEach(e => (groupedParticipants[e] = orderedParticipants.filter(p => (!p.estimate && e === 'null') || (p.estimate && e === p.estimate))))
+
+  return groupedParticipants as { [key: string]: any[] }
+})
+
+function orderParticipantByName(participants: any[]) {
+  return participants.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+function orderParticipantByEstimate(participants: any[]) {
+  return participants.sort((a, b) => getEstimateOrderValue(a.estimate) - getEstimateOrderValue(b.estimate))
+}
 
 function getEstimateOrderValue(estimate: string) {
   if (!estimate) return 0
@@ -44,19 +74,19 @@ function getEstimateOrderValue(estimate: string) {
   if (estimate === '3') return 5
   if (estimate === '5') return 6
   if (estimate === '8') return 7
-  return 8;
+  return 8
 }
 
-function getEstimateIcon(estimate: string) {
+function getEstimateIcon(estimate: string | number) {
   if (!estimate) return 'mdi-minus'
-  if (estimate === '?') return 'mdi-help-box'
-  if (estimate === '0') return 'mdi-numeric-0-box'
-  if (estimate === '1') return 'mdi-numeric-1-box'
-  if (estimate === '2') return 'mdi-numeric-2-box'
-  if (estimate === '3') return 'mdi-numeric-3-box'
-  if (estimate === '5') return 'mdi-numeric-5-box'
-  if (estimate === '8') return 'mdi-numeric-8-box'
-  return 'mdi-plus-box';
+  if (estimate === '?') return 'mdi-help'
+  if (estimate === '0') return 'mdi-numeric-0'
+  if (estimate === '1') return 'mdi-numeric-1'
+  if (estimate === '2') return 'mdi-numeric-2'
+  if (estimate === '3') return 'mdi-numeric-3'
+  if (estimate === '5') return 'mdi-numeric-5'
+  if (estimate === '8') return 'mdi-numeric-8'
+  return 'mdi-plus'
 }
 
 async function addParticipant() {
@@ -68,7 +98,11 @@ async function addParticipant() {
   })
   addParticipantPending.value = false
 }
-async function updateStatus(status) {
+async function deleteParticipant(id: string) {
+  const docRef = doc(db, 'theplanningpoker', roomId, 'participants', id)
+  await deleteDoc(docRef);
+}
+async function updateStatus(status: string) {
   if (!status) return;
 
   const batch = writeBatch(db)
@@ -107,6 +141,10 @@ function getEstimateColor(status: string, estimate: string) {
   if (status !== 'hide') return 'primary'
   return 'accent'
 }
+function getEstimateVariant(status: string, estimate: string) {
+  if (status === 'hide') return 'plain'
+  return 'flat'
+}
 </script>
 
 <template>
@@ -118,19 +156,53 @@ function getEstimateColor(status: string, estimate: string) {
         </div>
         <div v-else>
           <div v-if="!roomError && !participantsError">
-            <div v-if="room">
-              <v-card>
-                <v-toolbar color="transparent">
-                  <template v-slot:append>
-                    <v-btn size="small" icon="mdi-share-variant" @click="shareRoomLink(room.id)"></v-btn>
-                    <v-btn size="small" :icon="room.status === 'hide' ? 'mdi-eye' : 'mdi-eye-off'" @click="updateStatus(room.status)"></v-btn>
-                  </template>
-                </v-toolbar>
-                <v-card-item class="pt-0">
-                  <v-card-title>{{ room.name }}</v-card-title>
-                  <!-- <v-card-subtitle style="text-wrap: wrap">{{ room.id }}</v-card-subtitle> -->
-                </v-card-item>
-              </v-card>
+            <div v-if="room" class="position-relative">
+              <header
+                class="position-sticky top-0 mt-n4 pt-4 bg-background"
+                style="z-index: 1;"
+              ><!-- backdrop-filter: blur(12px); -->
+                <v-card><!-- style="opacity: .9;" -->
+                  <v-toolbar color="transparent">
+                    <template v-slot:append>
+                      <v-btn size="small" icon="mdi-share-variant" @click="shareRoomLink(room.id)"></v-btn>
+                      <v-btn size="small" :icon="room.status === 'hide' ? 'mdi-eye' : 'mdi-eye-off'" @click="updateStatus(room.status)"></v-btn>
+                    </template>
+                  </v-toolbar>
+                  <v-card-item class="pt-0">
+                    <v-card-title>{{ room.name }}</v-card-title>
+                    <!-- <v-card-subtitle style="text-wrap: wrap">{{ room.id }}</v-card-subtitle> -->
+                  </v-card-item>
+                  <v-card-text v-if="groupedParticipants">
+                    <v-card v-for="(value, key, index) in groupedParticipants" :key="key" :class="{ 'mt-4': index > 0 }" variant="tonal">
+                      <v-card-text>
+                        <div class="d-flex align-center">
+                          <v-badge :content="value.length" color="accent">
+                            <v-btn
+                              icon
+                              size="small"
+                              class="btn-fs-1"
+                              color="primary"
+                            >
+                              <span v-if="key === 'null'">
+                                <v-icon icon="mdi-minus"></v-icon>
+                              </span>
+                              <span v-else>
+                                <v-icon :icon="getEstimateIcon(key)"></v-icon>
+                              </span>
+                            </v-btn>
+                          </v-badge>
+                          <div class="ml-4">
+                            <v-chip v-for="(participant) in value" :key="participant.id">
+                              {{ participant.name }}
+                            </v-chip>
+                          </div>
+                        </div>
+                      </v-card-text>
+                    </v-card>
+                  </v-card-text>
+                </v-card>
+              </header>
+              
               <form v-if="participants && !participants.some(p => p.id === device)" @submit.prevent="addParticipant" class="mt-4">
                 <v-text-field v-model="participantInput" variant="solo" label="Ingresar como" clearable>
                   <template v-slot:append>
@@ -140,14 +212,14 @@ function getEstimateColor(status: string, estimate: string) {
               </form>
               <div v-else-if="participants && participants.some(p => p.id === device)" class="pa-4">
                 <div class="d-flex align-center justify-space-evenly flex-wrap">
-                  <v-btn color="primary" size="small" icon="mdi-help-box" class="btn-fs-1 ma-2" @click="updateEstimate('?')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-numeric-0-box" class="btn-fs-1 ma-2" @click="updateEstimate('0')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-numeric-1-box" class="btn-fs-1 ma-2" @click="updateEstimate('1')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-numeric-2-box" class="btn-fs-1 ma-2" @click="updateEstimate('2')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-numeric-3-box" class="btn-fs-1 ma-2" @click="updateEstimate('3')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-numeric-5-box" class="btn-fs-1 ma-2" @click="updateEstimate('5')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-numeric-8-box" class="btn-fs-1 ma-2" @click="updateEstimate('8')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-plus-box" class="btn-fs-1 ma-2" @click="updateEstimate('8+')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-help" class="btn-fs-1 ma-2" @click="updateEstimate('?')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-numeric-0" class="btn-fs-1 ma-2" @click="updateEstimate('0')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-numeric-1" class="btn-fs-1 ma-2" @click="updateEstimate('1')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-numeric-2" class="btn-fs-1 ma-2" @click="updateEstimate('2')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-numeric-3" class="btn-fs-1 ma-2" @click="updateEstimate('3')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-numeric-5" class="btn-fs-1 ma-2" @click="updateEstimate('5')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-numeric-8" class="btn-fs-1 ma-2" @click="updateEstimate('8')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-plus" class="btn-fs-1 ma-2" @click="updateEstimate('8+')"></v-btn>
                 </div>
               </div>
               <div v-if="sortedParticipants && sortedParticipants.length">
@@ -155,16 +227,61 @@ function getEstimateColor(status: string, estimate: string) {
                   <v-card-text>
                     <div class="d-flex align-center justify-space-between">
                       <span>
+                        <v-btn
+                          v-if="participant.id === room.id"
+                          icon
+                          size="small"
+                          class="btn-fs-1 mr-3"
+                          color="accent"
+                          variant="plain"
+                        >
+                          <v-icon icon="mdi-delete"></v-icon>
+                          <v-menu
+                            activator="parent"
+                            location="bottom end"
+                            transition="fade-transition"
+                          >
+                          <v-card min-width="200">
+                            <v-card-text>
+                              Confimar eliminación
+                            </v-card-text>
+                            <v-card-actions class="justify-end">
+                              <v-btn
+                                icon
+                                size="small"
+                                variant="text"
+                              >
+                                <v-icon icon="mdi-close"></v-icon>
+                              </v-btn>
+                              <v-btn
+                                icon
+                                size="small"
+                                variant="flat"
+                                color="primary"
+                                @click="deleteParticipant(participant.id)"
+                              >
+                                <v-icon icon="mdi-check"></v-icon>
+                              </v-btn>
+                            </v-card-actions>
+                          </v-card>
+                          </v-menu>
+                        </v-btn>
                         <v-icon v-if="participant.id === device" color="primary" size="extrasmall" icon="mdi-check-decagram"></v-icon>
                         {{ participant.name }}
                       </span>
-                      <v-btn icon size="small" class="btn-fs-1" :color="getEstimateColor(room.status, participant.estimate)">
+                      <v-btn
+                        icon
+                        size="small"
+                        class="btn-fs-1"
+                        :color="getEstimateColor(room.status, participant.estimate)"
+                        :variant="getEstimateVariant(room.status, participant.estimate)"
+                      >
                         <span v-if="room.status === 'hide'">
                           <span v-if="!participant.estimate">
-                            <v-icon icon="mdi-message-processing"></v-icon>
+                            <v-icon icon="mdi-dots-horizontal"></v-icon>
                           </span>
                           <span v-else>
-                            <v-icon icon="mdi-message-check"></v-icon>
+                            <v-icon icon="mdi-check-bold"></v-icon>
                           </span>
                         </span>
                         <span v-else>
