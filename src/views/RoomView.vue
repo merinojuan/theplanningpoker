@@ -228,17 +228,17 @@ function getEstimateVariant(status: string, estimate: string) {
                     <div class="d-flex align-center justify-space-between">
                       <span>
                         <v-btn
-                          v-if="participant.id === room.id"
+                          v-if="device === room.id"
                           icon
                           size="small"
                           class="btn-fs-1 mr-3"
                           color="accent"
                           variant="plain"
                         >
-                          <v-icon icon="mdi-delete"></v-icon>
+                          <v-icon icon="mdi-close"></v-icon>
                           <v-menu
                             activator="parent"
-                            location="bottom end"
+                            location="bottom"
                             transition="fade-transition"
                           >
                           <v-card min-width="200">
