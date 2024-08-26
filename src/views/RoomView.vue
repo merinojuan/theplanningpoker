@@ -40,22 +40,43 @@ let groupedParticipants = computed(() => {
   if (room.value.status === 'hide') return null
 
   let orderedParticipants = orderParticipantByName(participants.value.slice())
-  orderedParticipants = orderParticipantByEstimate(orderedParticipants.slice())
 
-  const estimates: string[] = orderedParticipants.reduce((acc, p) => {
-    if (!p.estimate) {
-      if (!acc.includes('null')) acc.push('null')
-    } else {
-      if (!acc.includes(p.estimate)) acc.push(p.estimate)
+  const estimates: string[] = orderedParticipants
+    .reduce((acc, p) => {
+      if (!p.estimate) {
+        if (!acc.includes('null')) acc.push('null')
+      } else {
+        if (!acc.includes(p.estimate)) acc.push(p.estimate)
+      }
+      return acc
+    }, [])
+
+  const sortedEstimates = estimates
+    .filter(e => e !== 'null' && e !== '?')
+    .sort((a, b) => {
+      const alength = filterParticipantsByEstimate(orderedParticipants, a).length
+      const blength = filterParticipantsByEstimate(orderedParticipants, b).length
+      if (alength === blength) return a.localeCompare(b)
+      return blength - alength
+    })
+
+  if (estimates.includes('?')) sortedEstimates.push('?')
+  if (estimates.includes('null')) sortedEstimates.push('null')
+
+  const groupedParticipants = []
+  sortedEstimates.forEach(e => (groupedParticipants.push(
+    {
+      estimate: e,
+      participants: filterParticipantsByEstimate(orderedParticipants, e)
     }
-    return acc
-  }, [])
+  )))
 
-  const groupedParticipants = {}
-  estimates.forEach(e => (groupedParticipants[e] = orderedParticipants.filter(p => (!p.estimate && e === 'null') || (p.estimate && e === p.estimate))))
-
-  return groupedParticipants as { [key: string]: any[] }
+  return groupedParticipants as any[]
 })
+
+function filterParticipantsByEstimate(participants: any[], estimate: string) {
+  return participants.filter(p => (!p.estimate && (!estimate || estimate === 'null')) || (p.estimate && estimate === p.estimate))
+}
 
 function orderParticipantByName(participants: any[]) {
   return participants.sort((a, b) => a.name.localeCompare(b.name))
@@ -158,7 +179,7 @@ function getEstimateVariant(status: string, estimate: string) {
           <div v-if="!roomError && !participantsError">
             <div v-if="room" class="position-relative">
               <header
-                class="position-sticky top-0 mt-n4 mx-n1 pt-4 bg-background"
+                class="position-sticky top-0 mt-n4 mx-n4 px-4 pt-4 bg-background"
                 style="z-index: 1;"
               ><!-- backdrop-filter: blur(12px); -->
                 <v-card><!-- style="opacity: .9;" -->
@@ -173,26 +194,24 @@ function getEstimateVariant(status: string, estimate: string) {
                     <!-- <v-card-subtitle style="text-wrap: wrap">{{ room.id }}</v-card-subtitle> -->
                   </v-card-item>
                   <v-card-text v-if="groupedParticipants">
-                    <v-card v-for="(value, key, index) in groupedParticipants" :key="key" :class="{ 'mt-4': index > 0 }" variant="tonal">
+                    <v-card v-for="(groupedParticipant, index) in groupedParticipants" :key="index" :class="{ 'mt-4': index > 0 }" variant="tonal">
                       <v-card-text>
                         <div class="d-flex align-center">
-                          <v-badge :content="value.length" color="accent">
-                            <v-btn
-                              icon
-                              size="small"
-                              class="btn-fs-1"
-                              color="primary"
-                            >
-                              <span v-if="key === 'null'">
-                                <v-icon icon="mdi-minus"></v-icon>
-                              </span>
-                              <span v-else>
-                                <v-icon :icon="getEstimateIcon(key)"></v-icon>
-                              </span>
-                            </v-btn>
-                          </v-badge>
+                          <v-btn
+                            icon
+                            size="small"
+                            class="btn-fs-1"
+                            color="primary"
+                          >
+                            <span v-if="groupedParticipant.estimate === 'null'">
+                              <v-icon icon="mdi-minus"></v-icon>
+                            </span>
+                            <span v-else>
+                              <v-icon :icon="getEstimateIcon(groupedParticipant.estimate)"></v-icon>
+                            </span>
+                          </v-btn>
                           <div class="ml-4">
-                            <v-chip v-for="(participant) in value" :key="participant.id" class="ma-1">
+                            <v-chip v-for="(participant) in groupedParticipant.participants" :key="participant.id" class="ma-1">
                               {{ participant.name }}
                             </v-chip>
                           </div>
@@ -210,20 +229,20 @@ function getEstimateVariant(status: string, estimate: string) {
                   </template>
                 </v-text-field>
               </form>
-              <div v-else-if="participants && participants.some(p => p.id === device)" class="pa-4">
+              <div v-else-if="participants && participants.some(p => p.id === device) && room.status === 'hide'" class="pt-4 px-4">
                 <div class="d-flex align-center justify-space-evenly flex-wrap">
-                  <v-btn color="primary" size="small" icon="mdi-help" class="btn-fs-1 ma-2" @click="updateEstimate('?')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-numeric-0" class="btn-fs-1 ma-2" @click="updateEstimate('0')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-numeric-1" class="btn-fs-1 ma-2" @click="updateEstimate('1')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-numeric-2" class="btn-fs-1 ma-2" @click="updateEstimate('2')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-numeric-3" class="btn-fs-1 ma-2" @click="updateEstimate('3')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-numeric-5" class="btn-fs-1 ma-2" @click="updateEstimate('5')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-numeric-8" class="btn-fs-1 ma-2" @click="updateEstimate('8')"></v-btn>
-                  <v-btn color="primary" size="small" icon="mdi-plus" class="btn-fs-1 ma-2" @click="updateEstimate('8+')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-help" class="btn-fs-1 ma-2" :disabled="room.status !== 'hide'" @click="updateEstimate('?')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-numeric-0" class="btn-fs-1 ma-2" :disabled="room.status !== 'hide'" @click="updateEstimate('0')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-numeric-1" class="btn-fs-1 ma-2" :disabled="room.status !== 'hide'" @click="updateEstimate('1')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-numeric-2" class="btn-fs-1 ma-2" :disabled="room.status !== 'hide'" @click="updateEstimate('2')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-numeric-3" class="btn-fs-1 ma-2" :disabled="room.status !== 'hide'" @click="updateEstimate('3')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-numeric-5" class="btn-fs-1 ma-2" :disabled="room.status !== 'hide'" @click="updateEstimate('5')"></v-btn>
+                  <v-btn color="primary" size="small" icon="mdi-numeric-8" class="btn-fs-1 ma-2" :disabled="room.status !== 'hide'" @click="updateEstimate('8')"></v-btn>
+                  <!-- <v-btn color="primary" size="small" icon="mdi-plus" class="btn-fs-1 ma-2" :disabled="room.status !== 'hide'" @click="updateEstimate('+')"></v-btn> -->
                 </div>
               </div>
               <div v-if="sortedParticipants && sortedParticipants.length">
-                <v-card v-for="(participant, index) in sortedParticipants" :key="participant.id" :class="{ 'mt-4': index > 0 }">
+                <v-card v-for="(participant) in sortedParticipants" :key="participant.id" class="mt-4">
                   <v-card-text>
                     <div class="d-flex align-center justify-space-between">
                       <span>
