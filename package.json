@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy-w": "cd dist && copy /y index.html 404.html && git init && git add -A && git commit -m deploy && git push -f https://github.com/merinojuan/theplanningpoker.git master:gh-pages"
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
